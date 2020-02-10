@@ -7,8 +7,8 @@
 // @description    Offle
 // @include        https://*.ingress.com/intel*
 // @include        http://*.ingress.com/intel*
-// @match          https://*.ingress.com/intel*
-// @match          http://*.ingress.com/intel*
+// @match          https://intel.ingress.com/*
+// @match          http://intel.ingress.com/*
 // @grant          none
 // @require        https://github.com/mozilla/localForage/releases/download/1.2.10/localforage.js
 // ==/UserScript==
