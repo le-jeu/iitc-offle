@@ -2,15 +2,11 @@
 // @id             iitc-plugin-offle
 // @name           IITC plugin: offle
 // @category       Misc
-// @version        0.7.2
+// @version        0.8
 // @namespace      https://github.com/vrabcak/iitc-offle
 // @description    Offle
-// @include        https://*.ingress.com/intel*
-// @include        http://*.ingress.com/intel*
 // @match          https://intel.ingress.com/*
-// @match          http://intel.ingress.com/*
 // @grant          none
-// @require        https://github.com/mozilla/localForage/releases/download/1.2.10/localforage.js
 // ==/UserScript==
 
 
@@ -477,42 +473,45 @@ function wrapper(plugin_info) {
     };
 
     var setup = function () {
-        offle.setupLayer();
-        offle.setupCSS();
-        offle.setupHtml();
+        var API = 'https://unpkg.com/localforage@1.7.3/dist/localforage.js';
+        $.getScript(API).done(function () {
+            offle.setupLayer();
+            offle.setupCSS();
+            offle.setupHtml();
 
-        //convert old localStorage database to new localforage
-        var db = JSON.parse(localStorage.getItem('portalDb'));
-        if (db) {
-            localforage.setItem('portalDb', db)
-                .then(function () {
-                    console.log('Offle: Db migrated');
-                    localStorage.removeItem('portalDb');
-                });
-        }
+            //convert old localStorage database to new localforage
+            var db = JSON.parse(localStorage.getItem('portalDb'));
+            if (db) {
+                localforage.setItem('portalDb', db)
+                    .then(function () {
+                        console.log('Offle: Db migrated');
+                        localStorage.removeItem('portalDb');
+                    });
+            }
 
-        //load portals from local storage
-        localforage.getItem('portalDb').then(
-            function (value) {
-                if (value) {
-                    offle.portalDb = value;
-                    if (Object.keys(offle.portalDb).length > 0) {
-                        offle.renderVisiblePortals();
-                    } else {
-                        offle.portalDb = {};
+            //load portals from local storage
+            localforage.getItem('portalDb').then(
+                function (value) {
+                    if (value) {
+                        offle.portalDb = value;
+                        if (Object.keys(offle.portalDb).length > 0) {
+                            offle.renderVisiblePortals();
+                        } else {
+                            offle.portalDb = {};
+                        }
                     }
                 }
-            }
-        );
+            );
 
 
-        map.on('movestart', function () {
-            offle.clearLayer();
+            map.on('movestart', function () {
+                offle.clearLayer();
+            });
+            map.on('moveend', offle.onMapMove);
+            window.addHook('portalAdded', offle.portalAdded);
+            window.addHook('mapDataRefreshEnd', offle.mapDataRefreshEnd);
+            window.addHook('portalDetailsUpdated', offle.portalDetailsUpdated);
         });
-        map.on('moveend', offle.onMapMove);
-        window.addHook('portalAdded', offle.portalAdded);
-        window.addHook('mapDataRefreshEnd', offle.mapDataRefreshEnd);
-        window.addHook('portalDetailsUpdated', offle.portalDetailsUpdated);
     };
     // PLUGIN END //////////////////////////////////////////////////////////
 
