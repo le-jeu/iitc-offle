@@ -14,6 +14,6 @@ The plugin also supports export of the saved portal lists in JSON and KML format
 You can use JSON format for backup of your portal database since the plugin supports also JSON import.  
 
 ## Installation 
-Install directly to Greasemonkey, Tampermonkey or the IITC-Button by clicking [the link](https://github.com/4e-ecuador/iitc-offle/raw/master/iitc-offle.user.js)
+Install directly to Greasemonkey, Tampermonkey or the IITC-Button by clicking [the link](https://github.com/elkuku/iitc-offle/raw/master/iitc-offle.user.js)
 
 ![screen](screen-1.png)
