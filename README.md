@@ -15,3 +15,5 @@ You can use JSON format for backup of your portal database since the plugin supp
 
 ## Installation 
 Install directly to Greasemonkey, Tampermonkey or the IITC-Button by clicking [the link](https://github.com/4e-ecuador/iitc-offle/raw/master/iitc-offle.user.js)
+
+![screen](screen-1.png)
