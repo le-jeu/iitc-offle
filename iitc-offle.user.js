@@ -55,35 +55,61 @@ function wrapper(plugin_info) {
 
     offle.addPortal = function (guid, name, latLng, mission) {
 
-        var notInDb = guid && !(guid in offle.portalDb);
-        var newName = name && offle.portalDb[guid] && !offle.portalDb[guid].name;
+        var notInDb = guid && !(guid in offle.portalDb);        
+        var old = offle.portalDb[guid];        
 
-        //console.log("AddPortal ", guid," ",name, "::", notInDb, " ", newName);
+        //console.log("AddPortal: %o %o %o %o %o", guid, name, latLng, mission, old, notInDb);
 
-        if (notInDb || newName) {
+        var newName = name && old && old.name != name;
+        var newPos = latLng && old && (old.lat != latLng.lat || old.lng != latLng.lng);
+        var newMission = mission != null && old && old.mission != mission;
+        var newData = newName || newPos || newMission;
 
-            //add to last added list only new portals or update already displayed guid with name
-            if (notInDb || (newName && (guid in offle.lastAddedDb))) {
-                offle.lastAddedDb[guid] = {
-                    name: name || guid,
-                    latLng: latLng,
-                    unique: false
+        //console.log("AddPortal ", guid," ",name, "::", notInDb, " ", newName, " ", newPos, " ", newMission);
+
+        var now = Date.now();
+
+        if (notInDb || newData) {
+
+            var hadName = old && old.name != null && old.name != old.guid;
+
+            //add to last added list only new portals or update already displayed guid with new data
+            if (notInDb || (((newName && hadName) || newPos) /*&& (guid in offle.lastAddedDb)*/)) {
+                var la = {
+                    name: notInDb || newName ? name || guid : old.name,
+                    latLng: notInDb || newPos ? latLng : { lat: old.lat, lng: old.lng },
+                    unique: false,
+                    isNew: notInDb
                 };
+                if (newName) la.oldName = old.name;
+                if (newPos) la.oldPos = { lat: old.lat, lng: old.lng };
 
                 if (!(window.plugin.uniques && (guid in window.plugin.uniques.uniques))) {
-                    offle.lastAddedDb[guid].unique = true;
+                    la.unique = true;
                 }
-            }
 
-            offle.portalDb[guid] = latLng;
-            offle.portalDb[guid].name = name;
-            offle.portalDb[guid].mission = mission;
+                offle.lastAddedDb[guid] = la;
+            }
+            
+            let portal = offle.portalDb[guid] || {};
+            if (notInDb || newName) portal.name = name || guid;
+            if (notInDb || newPos) { portal.lat = latLng.lat; portal.lng = latLng.lng; }
+            if (notInDb || mission) portal.mission = mission;
+            if (notInDb || !portal.createTs)  portal.createTs = now;
+            portal.modifyTs = now;
+            if (notInDb) offle.portalDb[guid] = portal;
             offle.dirtyDb = true; //mark Db dirty to by stored on mapDataRefreshEnd
             offle.renderPortal(guid);
             offle.updatePortalCounter();
             offle.updateLACounter();
-            offle.updateLAList();
+            offle.updateLAList();            
         }
+
+        // set last seen timestamp so we can track potentially removed portals later
+        offle.portalDb[guid].seenTs = now;
+        if (!offle.portalDb[guid].createTs)
+            offle.portalDb[guid].createTs = offle.portalDb[guid].modifyTs = now;
+        offle.dirtyDb = true; // yes(!) - we need to save every scan
     };
 
     offle.currentPortalMarkers = {};
