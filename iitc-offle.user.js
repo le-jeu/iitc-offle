@@ -379,9 +379,16 @@ function wrapper(plugin_info) {
         var guids = Object.keys(offle.lastAddedDb);
         var portalListHtml = guids.map(function (guid) {
             var portal = offle.lastAddedDb[guid];
-            return '<a onclick="window.plugin.offle.zoomToPortalAndShow(\'' + guid + '\');return false"' +
-                (portal.unique ? 'style="color: #FF6200;"' : '') +
-                'href="/intel?pll=' + portal.latLng.lat + ',' + portal.latLng.lng + '">' + portal.name + '</a>';
+            var html = '<a onclick="window.plugin.offle.zoomToPortalAndShow(\'' + guid + '\');return false"' +
+                (portal.unique ? 'style="color: #FF6200;"' : '')
+                + 'href="/intel?pll=' + portal.latLng.lat + ',' + portal.latLng.lng + '">'
+                + portal.name
+                + '</a>';
+            if (!portal.isNew) {
+                if (portal.oldName) html += " (renamed: " + portal.oldName + ")";
+                if (portal.oldPos) html += " (moved: " + (portal.latLng.lat - portal.oldPos.lat) + "," + (portal.latLng.lng - portal.oldPos.lng) + ")";
+            }
+            return html;
         }).join('<br />');
         $('#offle-last-added-list').html(portalListHtml);
     };
