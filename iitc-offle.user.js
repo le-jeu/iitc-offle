@@ -413,7 +413,7 @@ function wrapper(plugin_info) {
                     offle.portalDb[guid].mission = obj.mission;
                 }
                 var new_len = Object.keys(offle.portalDb).length;
-                offle.dirtyDb = true;
+                offle.saveData(true); 
                 window.alert('Portals processed: ' + len + ', portals added:' + (new_len - old_len) + '.');
                 offle.renderVisiblePortals();
             }
