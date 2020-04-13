@@ -405,15 +405,10 @@ function wrapper(plugin_info) {
                     if (!obj.hasOwnProperty('lat') || !obj.hasOwnProperty('lng')) {
                         continue;
                     }
-                    offle.portalDb[guid] = {
-                        'lat': obj.lat,
-                        'lng': obj.lng
-                    };
-                    offle.portalDb[guid].name = obj.name;
-                    offle.portalDb[guid].mission = obj.mission;
+                    offle.portalDb[guid] = obj;
                 }
                 var new_len = Object.keys(offle.portalDb).length;
-                offle.saveData(true); 
+                offle.saveData(true);
                 window.alert('Portals processed: ' + len + ', portals added:' + (new_len - old_len) + '.');
                 offle.renderVisiblePortals();
             }
