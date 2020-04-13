@@ -152,11 +152,11 @@ function wrapper(plugin_info) {
     };
 
     offle.mapDataRefreshStart = function () {
-        console.log("offle: starting map refresh..");
+        //console.log("offle: starting map refresh..");
     };
 
     offle.mapDataRefreshEnd = function () {
-        console.log("offle: map refresh ended!");
+        //console.log("offle: map refresh ended!");
         offle.saveData();
     };
 
@@ -512,6 +512,7 @@ function wrapper(plugin_info) {
             });
             map.on('moveend', offle.onMapMove);
             window.addHook('portalAdded', offle.portalAdded);
+            window.addHook('mapDataRefreshStart', offle.mapDataRefreshStart);
             window.addHook('mapDataRefreshEnd', offle.mapDataRefreshEnd);
             window.addHook('portalDetailsUpdated', offle.portalDetailsUpdated);
         });
