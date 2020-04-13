@@ -143,13 +143,21 @@ function wrapper(plugin_info) {
         offle.keyLayerGroup.clearLayers();
     };
 
-
-    offle.mapDataRefreshEnd = function () {
-        if (offle.dirtyDb) {
+    offle.saveData = function (force) {
+        if (offle.dirtyDb || force === true) {
             //console.log("Storing new portals to localStorage");
             localforage.setItem('portalDb', offle.portalDb);
         }
         offle.dirtyDb = false;
+    };
+
+    offle.mapDataRefreshStart = function () {
+        console.log("offle: starting map refresh..");
+    };
+
+    offle.mapDataRefreshEnd = function () {
+        console.log("offle: map refresh ended!");
+        offle.saveData();
     };
 
     offle.setupLayer = function () {
