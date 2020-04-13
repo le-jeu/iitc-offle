@@ -86,7 +86,14 @@ function wrapper(plugin_info) {
         }
     };
 
+    offle.currentPortalMarkers = {};
+
     offle.renderPortal = function (guid) {
+
+        var oldMarker = offle.currentPortalMarkers[guid];
+        if (oldMarker) // avoid moved portals staying in both locations on the map until refresh
+            try { oldMarker.remove(); } catch (e) {};
+
         var portalMarker, uniqueInfo,
             iconCSSClass = 'offle-marker';
 
@@ -119,6 +126,7 @@ function wrapper(plugin_info) {
         });
 
         portalMarker.addTo(offle.portalLayerGroup);
+        offle.currentPortalMarkers[guid] = portalMarker;
 
         if (window.plugin.keys) {
             var keyCount = window.plugin.keys.keys[guid];
@@ -141,6 +149,7 @@ function wrapper(plugin_info) {
     offle.clearLayer = function () {
         offle.portalLayerGroup.clearLayers();
         offle.keyLayerGroup.clearLayers();
+        offle.currentPortalMarkers = {};
     };
 
     offle.saveData = function (force) {
@@ -410,6 +419,8 @@ function wrapper(plugin_info) {
                 var new_len = Object.keys(offle.portalDb).length;
                 offle.saveData(true);
                 window.alert('Portals processed: ' + len + ', portals added:' + (new_len - old_len) + '.');
+
+                offle.clearLayer(); // in case something was moved (avoid duplicates)
                 offle.renderVisiblePortals();
             }
         }
