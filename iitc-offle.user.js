@@ -290,6 +290,12 @@ function wrapper(plugin_info) {
         offle.renderVisiblePortals();
     };
 
+    offle.changeSymbolWithMission = function (event) {
+        offle.symbolWithMission = event.target.value;
+        offle.clearLayer();
+        offle.renderVisiblePortals();
+    };
+
     offle.changeMaxVisibleCount = function (event) {
         offle.maxVisibleCount = event.target.value;
         offle.clearLayer();
@@ -327,6 +333,9 @@ function wrapper(plugin_info) {
             '<div> Portal marker symbol: <input type="text" value="' +
             offle.symbol +
             '" size="1" onchange="window.plugin.offle.changeSymbol(event)"> </div>' +
+            '<div> Portal with mission marker symbol: <input type="text" value="' +
+            offle.symbolWithMission +
+            '" size="1" onchange="window.plugin.offle.changeSymbolWithMission(event)"> </div>' +
             '<div> Maximum visible portals: <input type="number" value="' +
             offle.maxVisibleCount +
             '" size="5" onchange="window.plugin.offle.changeMaxVisibleCount(event)"> </div>' +
