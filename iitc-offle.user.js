@@ -9,13 +9,11 @@
 // @grant          none
 // ==/UserScript==
 
-
 function wrapper(plugin_info) {
     // ensure plugin framework is there, even if iitc is not yet loaded
     if (typeof window.plugin !== 'function') {
         window.plugin = function () {};
     }
-
 
     // PLUGIN START ////////////////////////////////////////////////////////
 
@@ -26,6 +24,7 @@ function wrapper(plugin_info) {
     offle.lastAddedDb = {};
     offle.symbol = '&bull;';
     offle.symbolWithMission = '◉';
+    offle.symbolWithMissionEnabled = false;
     offle.maxVisibleCount = 2000;
 
 
@@ -51,7 +50,6 @@ function wrapper(plugin_info) {
             localforage.setItem('portalDb', offle.portalDb);
         }
     };
-
 
     offle.addPortal = function (guid, name, latLng, mission) {
 
@@ -141,7 +139,7 @@ function wrapper(plugin_info) {
                 className: iconCSSClass,
                 iconAnchor: [15, 23],
                 iconSize: [30, 30],
-                html: offle.portalDb[guid].mission ? offle.symbolWithMission : offle.symbol
+                html: offle.portalDb[guid].mission && offle.symbolWithMissionEnabled ? offle.symbolWithMission : offle.symbol
             }),
             name: offle.portalDb[guid].name,
             title: offle.portalDb[guid].name || ''
@@ -205,36 +203,57 @@ function wrapper(plugin_info) {
     offle.setupCSS = function () {
         $('<style>')
             .prop('type', 'text/css')
-            .html('.offle-marker {' +
-                'font-size: 30px;' +
-                'color: #FF6200;' +
-                'font-family: monospace;' +
-                'text-align: center;' +
-                //'pointer-events: none;' +
-                '}' +
-                '.offle-marker-visited-color {' +
-                'color: #FFCE00;' +
-                '}' +
-                '.offle-marker-captured-color {' +
-                'color: #00BB00;' +
-                '}' +
-                '.offle-portal-counter {' +
-                'display: none; position: absolute; top:0; left: 40vh;' +
-                'background-color: orange; z-index: 4002; cursor:pointer;}' +
-                '.pokus {' +
-                'border-style: solid;' +
-                'border-width: 3px' +
-                '}' +
-                '.offle-key {' +
-                'font-size: 10px;' +
-                'color: #FFFFBB;' +
-                'font-family: monospace;' +
-                'text-align: center;' +
-                'text-shadow: 0 0 0.5em black, 0 0 0.5em black, 0 0 0.5em black;' +
-                'pointer-events: none;' +
-                '-webkit-text-size-adjust:none;' +
-                '}'
-            )
+            .html(`
+            #offle-info {
+                box-sizing: border-box;
+            }
+            #offle-info table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            #offle-info tr td:first-child {
+                width: 70%;
+            }
+            #offle-info td {
+                padding: 0.35em 0;
+                vertical-align: center;
+            }
+            .offle-marker {
+                font-size: 30px;
+                color: #FF6200;
+                font-family: monospace;
+                text-align: center;
+                /* pointer-events: none; */
+            }
+            .offle-marker-visited-color {
+                color: #FFCE00;
+            }
+            .offle-marker-captured-color {
+                color: #00BB00;
+            }
+            .offle-portal-counter {
+                display: none;
+                position: absolute;
+                top: 0;
+                left: 40vh;
+                background-color: orange;
+                z-index: 4002;
+                cursor: pointer;
+            }
+            .pokus {
+                border-style: solid;
+                border-width: 3px;
+            }
+            .offle-key {
+                font-size: 10px;
+                color: #FFFFBB;
+                font-family: monospace;
+                text-align: center;
+                text-shadow: 0 0 0.5em black, 0 0 0.5em black, 0 0 0.5em black;
+                pointer-events: none;
+                -webkit-text-size-adjust: none;
+            }
+            `)
             .appendTo('head');
     };
 
@@ -296,6 +315,12 @@ function wrapper(plugin_info) {
         offle.renderVisiblePortals();
     };
 
+    offle.toggleSymbolWithMission = function (event) {
+        offle.symbolWithMissionEnabled = event.target.checked;
+        offle.clearLayer();
+        offle.renderVisiblePortals();
+    }
+
     offle.changeMaxVisibleCount = function (event) {
         offle.maxVisibleCount = event.target.value;
         offle.clearLayer();
@@ -306,52 +331,50 @@ function wrapper(plugin_info) {
 
         $('#toolbox').append('<a id="offle-show-info" onclick="window.plugin.offle.showDialog();">Offle</a> ');
 
-        offle.lastAddedDialogHtml = '' +
-            '<div id="offle-last-added-list">' +
-            'placeholder <br/>' +
-            'placeholder' +
-            '</div>' +
-            '<button onclick="window.plugin.offle.clearLADb()">Clear</div>';
+        offle.lastAddedDialogHtml = `
+            <div id="offle-last-added-list">
+                placeholder <br>
+                placeholder
+            </div>
+            <button onclick="window.plugin.offle.clearLADb()">Clear</div>`
 
         $('body').append('<div class="offle-portal-counter" onclick="window.plugin.offle.showLAWindow();">0</div>');
 
     };
 
-
     offle.showDialog = function () {
-        offle.dialogHtml = '<div id="offle-info">' +
-            '<div>' +
-            '<div> Offline portals count:' +
-            '<span id="offle-portal-counter">' +
-            Object.keys(offle.portalDb).length +
-            '</span></div>' +
-            '<div> Visible portals:' +
-            '<span id="visible-portals-counter">x</span></div>' +
-            '<div> Unique portals visited: ' +
-            (window.plugin.uniques ? Object.keys(window.plugin.uniques.uniques).length : 'uniques plugin missing') +
-            '</div>' +
-            '<div> Portal marker symbol: <input type="text" value="' +
-            offle.symbol +
-            '" size="1" onchange="window.plugin.offle.changeSymbol(event)"> </div>' +
-            '<div> Portal with mission marker symbol: <input type="text" value="' +
-            offle.symbolWithMission +
-            '" size="1" onchange="window.plugin.offle.changeSymbolWithMission(event)"> </div>' +
-            '<div> Maximum visible portals: <input type="number" value="' +
-            offle.maxVisibleCount +
-            '" size="5" onchange="window.plugin.offle.changeMaxVisibleCount(event)"> </div>' +
-            '<div style="border-bottom: 60px;">' +
-            '<button onclick="window.plugin.offle.showLAWindow();return false;">New portals</button>' +
-            '<button onClick="window.plugin.offle.export();return false;">Export JSON</button>' +
-            '<button onClick="window.plugin.offle.exportKML();return false;">Export KML</button>' +
-            '<button onClick="window.plugin.offle.import();return false;">Import JSON</button>' +
-            '<input type="file" id="fileInput" style="visibility: hidden">' +
-            '</div><br/>' +
-            '<a href="" id="dataDownloadLink" download="" style="display: none" onclick="this.style.display=\'none\'">' +
-            'click to download </a>' +
-            '<br/><br/>' +
-            '<button onclick="window.plugin.offle.clearDb();return false;" style="font-size: 5px;">' +
-            'Clear all offline portals</button>' +
-            '</div>';
+        offle.dialogHtml = `<div id="offle-info">
+            <div>
+                <table>
+                    <tr><td>Offline portals count:</td><td><span id="offle-portal-counter">${ Object.keys(offle.portalDb).length }</span></td></tr>
+                    <tr><td>Visible portals:</td><td><span id="visible-portals-counter">x</span></td></tr>
+                    <tr><td>Unique portals visited:</td><td>${ window.plugin.uniques ? Object.keys(window.plugin.uniques.uniques).length : 'uniques plugin missing' }</td></tr>
+                    <tr><td>Portal marker symbol:</td><td><input type="text" value="${offle.symbol}" size="1" onchange="window.plugin.offle.changeSymbol(event)"></td></tr>
+                    <tr>
+                        <td><input type="checkbox" ${offle.symbolWithMissionEnabled ? 'checked' : ''} onclick="window.plugin.offle.toggleSymbolWithMission(event)">Portal with mission marker symbol:</td>
+                        <td><input type="text" value="${ offle.symbolWithMission }" size="1" onchange="window.plugin.offle.changeSymbolWithMission(event)"></td>
+                    </tr>
+                    <tr><td>Max visible portals:</td><td><input type="number" value="${ offle.maxVisibleCount }" size="5" onchange="window.plugin.offle.changeMaxVisibleCount(event)"></td></tr>
+                </table>
+                <div style="border-bottom: 60px;">
+                    <div>
+                        <button onclick="window.plugin.offle.showLAWindow();return false;">New portals</button>
+                    </div>
+                    <div>
+                        <button onClick="window.plugin.offle.export();return false;">Export JSON</button>
+                        <button onClick="window.plugin.offle.exportKML();return false;">Export KML</button>
+                    </div>
+                    <div>
+                        <button onClick="window.plugin.offle.import();return false;">Import JSON</button>
+                        <input type="file" id="fileInput" style="visibility: hidden">
+                    </div>
+                </div>
+                <br>
+                <a href="" id="dataDownloadLink" download="" style="display: none" onclick="this.style.display=\'none\'">click to download </a>
+                <br><br>
+                <button onclick="window.plugin.offle.clearDb();return false;" style="font-size: 5px;">Clear all offline portals</button>
+            </div>`
+
 
         window.dialog({
             html: offle.dialogHtml,
