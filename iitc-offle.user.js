@@ -2,7 +2,7 @@
 // @id             iitc-plugin-offle
 // @name           IITC plugin: offle
 // @category       Misc
-// @version        0.10
+// @version        0.9
 // @namespace      https://github.com/vrabcak/iitc-offle
 // @description    Offle
 // @match          https://intel.ingress.com/*
@@ -528,35 +528,6 @@ function wrapper(plugin_info) {
         dataDownlodaLinkEl.style.display = 'block';
     };
 
-    // extend portal's GUID lookup to search in offle portals as well
-    offle.findPortalGuidByOffleE6 = function(latE6, lngE6) {
-        // try looking up using the original IITC function
-        let guid = offle.findPortalGuidByPositionE6old(latE6, lngE6);
-        //console.log("findPortalGuidByOffleE6[original] %s %s -> %s", latE6, lngE6, guid);
-
-        // if the lookup fails, try locating the portal using the offle database
-        if (guid == null) {
-            let lat = parseInt(latE6) / 1E6;
-            let lng = parseInt(lngE6) / 1E6;
-            //console.log("lat/lng parsed as", lat, lng);
-            for (let g in offle.portalDb) {
-                let p = offle.portalDb[g];
-                if (p.lat == lat && p.lng == lng) {
-                    //console.log("findPortalGuidByOffleE6[offle] matched! %s %s -> [%s] = %o", latE6, lngE6, g, p);
-                    guid = g;
-                    break;
-                }
-            }
-        }
-        return guid;
-    }
-
-    offle.searchInit = function () {
-        offle.findPortalGuidByPositionE6old = window.findPortalGuidByPositionE6;
-        window.findPortalGuidByPositionE6 = function(lat,lng) { return offle.findPortalGuidByOffleE6(lat, lng) };
-        console.log ("findPortalGuidByOffleE6 code injected");
-    }
-
     var setup = function () {
         var API = 'https://unpkg.com/localforage@1.7.3/dist/localforage.js';
         $.getScript(API).done(function () {
@@ -588,6 +559,7 @@ function wrapper(plugin_info) {
                 }
             );
 
+
             map.on('movestart', function () {
                 offle.clearLayer();
             });
@@ -597,12 +569,9 @@ function wrapper(plugin_info) {
             window.addHook('mapDataRefreshEnd', offle.mapDataRefreshEnd);
             window.addHook('portalDetailsUpdated', offle.portalDetailsUpdated);
         });
-
-        // overload findPortalGuidByPositionE6() core IITC function with one
-        // that also searches the offle database
-        offle.searchInit();
     };
     // PLUGIN END //////////////////////////////////////////////////////////
+
 
     setup.info = plugin_info; //add the script info data to the function as a property
     if (!window.bootPlugins) {
