@@ -18,14 +18,31 @@ function wrapper(plugin_info) {
     // PLUGIN START ////////////////////////////////////////////////////////
 
     // use own namespace for plugin
-    window.plugin.offle = function () {};
-    var offle = window.plugin.offle;
+    const offle = window.plugin.offle = function () {};
     offle.portalDb = {};
     offle.lastAddedDb = {};
-    offle.symbol = '&bull;';
-    offle.symbolWithMission = '◉';
-    offle.symbolWithMissionEnabled = false;
-    offle.maxVisibleCount = 2000;
+
+    const defaultSettings = {
+        symbol: '&bull;',
+        symbolWithMission: '◉',
+        symbolWithMissionEnabled: false,
+        maxVisibleCount: 2000,
+        showFlags: 1 + 2,
+        showFlagsInvert: true
+    };
+
+    offle.settings = defaultSettings;
+    try {
+        let s = JSON.parse(localStorage.getItem("offle.settings"));
+        if (s != null && typeof s === 'object') {
+            offle.settings = Object.assign({}, defaultSettings, s);
+        }
+    } catch (e) {
+    }
+
+    const saveSettings = function() {
+        localStorage.setItem("offle.settings", JSON.stringify(offle.settings));
+    }
 
     const isVisited = function(flags) {
         return (flags & 1) == 1;
@@ -147,6 +164,8 @@ function wrapper(plugin_info) {
 
     offle.renderPortal = function (guid) {
 
+        let portal = offle.portalDb[guid];
+
         var oldMarker = offle.currentPortalMarkers[guid];
         if (oldMarker) // avoid moved portals staying in both locations on the map until refresh
             try { oldMarker.remove(); } catch (e) {};
@@ -158,21 +177,52 @@ function wrapper(plugin_info) {
             uniqueInfo = window.plugin.uniques.uniques[guid];
         }
 
-        if (uniqueInfo) {
-            if (uniqueInfo.visited) {
-                iconCSSClass += ' offle-marker-visited-color';
-            }
-            if (uniqueInfo.captured) {
-                iconCSSClass += ' offle-marker-captured-color';
+        let scouted, visited, captured;
+        scouted = visited = captured = false;
+        
+        let showScouted = isScouted(offle.settings.showFlags);
+        let showVisited = isVisited(offle.settings.showFlags);
+        let showCaptured = isCaptured(offle.settings.showFlags);
+
+        if (portal.flags) {
+            scouted = isScouted(portal.flags);
+            visited = isVisited(portal.flags);
+            captured = isCaptured(portal.flags);
+        } else {
+            if (uniqueInfo) {
+                visited = uniqueInfo.visited;
+                captured = uniqueInfo.captured;
             }
         }
 
-        portalMarker = L.marker(offle.portalDb[guid], {
+        if (scouted) iconCSSClass += ' offle-marker-scouted';
+        if (visited) iconCSSClass += ' offle-marker-visited';
+        if (captured) iconCSSClass += ' offle-marker-captured';
+
+        let html = "";
+
+        if (offle.settings.showFlagsInvert) {
+            html +=
+                (scouted || !showScouted ? '' : '<div class="offle-marker-unscouted-overlay"></div>') +
+                (captured || !showCaptured ? '' : '<div class="offle-marker-uncaptured-overlay"></div>') +
+                ((visited || captured) || !showVisited ? '' : '<div class="offle-marker-unvisited-overlay"></div>') ;
+        } else {
+            html +=
+                (scouted && showScouted ? '<div class="offle-marker-scouted-overlay"></div>' : '') +
+                ((visited || captured) && showVisited ? '<div class="offle-marker-visited-overlay"></div>' : '') +
+                (captured && showCaptured ? '<div class="offle-marker-captured-overlay"></div>' : '');
+        }
+
+        html +=
+            `<div class="${iconCSSClass}">` + (offle.portalDb[guid].mission && offle.settings.symbolWithMissionEnabled ? offle.settings.symbolWithMission : offle.settings.symbol) + '</div>';
+
+        portalMarker = L.marker(portal /* {lat, lng} */, {
             icon: L.divIcon({
-                className: iconCSSClass,
-                iconAnchor: [15, 23],
+                //className: iconCSSClass,
+                className: 'offle-marker-outer',
+                iconAnchor: [15, 15],
                 iconSize: [30, 30],
-                html: offle.portalDb[guid].mission && offle.symbolWithMissionEnabled ? offle.symbolWithMission : offle.symbol
+                html: html
             }),
             name: offle.portalDb[guid].name,
             title: offle.portalDb[guid].name || ''
@@ -233,37 +283,145 @@ function wrapper(plugin_info) {
         window.addLayerGroup('offleKeys', offle.keyLayerGroup, false);
     };
 
+    let markerSize = 30;
+    let colors = {
+        neutral: "#FF6200",
+        captured: "#00BB00",
+        visited: "#FFCE00",
+        scouted: "#FFCE00",
+        // generic
+        true: "#00BB00", // green
+        false: "#FF2000" // red
+    };
+
+    let rectangleWidth = 2;
+    let circleWidth = 4;
+
     offle.setupCSS = function () {
         $('<style>')
             .prop('type', 'text/css')
             .html(`
+
             #offle-info {
                 box-sizing: border-box;
             }
+
             #offle-info table {
                 width: 100%;
                 border-collapse: collapse;
             }
+
             #offle-info tr td:first-child {
                 width: 70%;
             }
+
             #offle-info td {
                 padding: 0.35em 0;
                 vertical-align: center;
             }
+
+            .offle-marker-outer {
+                /*background-color: rgba(0,0,0,0.75);*/
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+            }
+
             .offle-marker {
-                font-size: 30px;
-                color: #FF6200;
-                font-family: monospace;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                position: absolute;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
                 text-align: center;
-                /* pointer-events: none; */
+                color: ${colors.neutral};
+                font-family: monospace;
+                padding-bottom: 1px;
             }
-            .offle-marker-visited-color {
-                color: #FFCE00;
+
+            .offle-marker-visited {
+                color: ${colors.visited};
             }
-            .offle-marker-captured-color {
-                color: #00BB00;
+
+            .offle-marker-captured {
+                color: ${colors.captured};
             }
+
+            .offle-marker-scouted {
+                color: ${colors.scouted};
+            }
+
+            .offle-marker-unvisited-overlay {
+                position: absolute;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
+                text-align: center;
+                border-radius: ${markerSize}px;
+                border: ${circleWidth}px dashed ${colors.neutral};
+                box-sizing: border-box;
+            }
+            
+            .offle-marker-uncaptured-overlay {
+                position: absolute;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
+                text-align: center;
+                border-radius: ${markerSize}px;
+                border: ${circleWidth}px solid ${colors.false};
+                box-sizing: border-box;
+            }
+
+            .offle-marker-unscouted-overlay {
+                opacity: 0.85;
+                position: absolute;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
+                text-align: center;
+                border: ${rectangleWidth}px solid ${colors.false};
+                box-sizing: border-box;
+            }
+
+            .offle-marker-visited-overlay {
+                position: absolute;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
+                text-align: center;
+                border-radius: ${markerSize}px;
+                border: ${circleWidth}px dotted ${colors.neutral};
+                box-sizing: border-box;
+            }
+
+            .offle-marker-captured-overlay {
+                position: absolute;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
+                text-align: center;
+                border-radius: ${markerSize}px;
+                border: ${circleWidth}px solid ${colors.true};
+                box-sizing: border-box;
+            }
+
+            .offle-marker-scouted-overlay {
+                opacity: 0.85;
+                position: absolute;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
+                font-size: ${markerSize}px;
+                line-height: ${markerSize}px;
+                text-align: center;
+                border: ${rectangleWidth}px solid ${colors.true};
+                box-sizing: border-box;
+            }
+
             .offle-portal-counter {
                 display: none;
                 position: absolute;
@@ -273,10 +431,7 @@ function wrapper(plugin_info) {
                 z-index: 4002;
                 cursor: pointer;
             }
-            .pokus {
-                border-style: solid;
-                border-width: 3px;
-            }
+
             .offle-key {
                 font-size: 10px;
                 color: #FFFFBB;
@@ -314,7 +469,7 @@ function wrapper(plugin_info) {
 
     offle.renderVisiblePortals = function () {
         var visiblePortalsKeys = offle.getVisiblePortals();
-        if (visiblePortalsKeys.length < offle.maxVisibleCount) {
+        if (visiblePortalsKeys.length < offle.settings.maxVisibleCount) {
             visiblePortalsKeys.forEach(function (key) {
                 offle.renderPortal(key);
             });
@@ -337,25 +492,43 @@ function wrapper(plugin_info) {
     };
 
     offle.changeSymbol = function (event) {
-        offle.symbol = event.target.value;
+        offle.settings.symbol = event.target.value;
+        saveSettings();
         offle.clearLayer();
         offle.renderVisiblePortals();
     };
 
     offle.changeSymbolWithMission = function (event) {
-        offle.symbolWithMission = event.target.value;
+        offle.settings.symbolWithMission = event.target.value;
+        saveSettings();
         offle.clearLayer();
         offle.renderVisiblePortals();
     };
 
+    offle.toggleShowFlags = function (event, flag) {
+        offle.settings.showFlags = (offle.settings.showFlags & ~flag) | (event.target.checked ? flag : 0);
+        saveSettings();
+        offle.clearLayer();
+        offle.renderVisiblePortals();
+    }
+
+    offle.toggleShowFlagsInvert = function (event) {
+        offle.settings.showFlagsInvert = event.target.checked === true;
+        saveSettings();
+        offle.clearLayer();
+        offle.renderVisiblePortals();
+    }
+
     offle.toggleSymbolWithMission = function (event) {
-        offle.symbolWithMissionEnabled = event.target.checked;
+        offle.settings.symbolWithMissionEnabled = event.target.checked;
+        saveSettings();
         offle.clearLayer();
         offle.renderVisiblePortals();
     }
 
     offle.changeMaxVisibleCount = function (event) {
-        offle.maxVisibleCount = event.target.value;
+        offle.settings.maxVisibleCount = event.target.value;
+        saveSettings();
         offle.clearLayer();
         offle.renderVisiblePortals();
     };
@@ -379,15 +552,38 @@ function wrapper(plugin_info) {
         offle.dialogHtml = `<div id="offle-info">
             <div>
                 <table>
-                    <tr><td>Offline portals count:</td><td><span id="offle-portal-counter">${ Object.keys(offle.portalDb).length }</span></td></tr>
+
+                <tr><td>Offline portals count:</td><td><span id="offle-portal-counter">${ Object.keys(offle.portalDb).length }</span></td></tr>
+
                     <tr><td>Visible portals:</td><td><span id="visible-portals-counter">x</span></td></tr>
+
                     <tr><td>Unique portals visited:</td><td>${ window.plugin.uniques ? Object.keys(window.plugin.uniques.uniques).length : 'uniques plugin missing' }</td></tr>
-                    <tr><td>Portal marker symbol:</td><td><input type="text" value="${offle.symbol}" size="1" onchange="window.plugin.offle.changeSymbol(event)"></td></tr>
+
+                    <tr><td>Portal marker symbol:</td><td><input type="text" value="${offle.settings.symbol}" size="1" onchange="window.plugin.offle.changeSymbol(event)"></td></tr>
+
                     <tr>
-                        <td><input type="checkbox" ${offle.symbolWithMissionEnabled ? 'checked' : ''} onclick="window.plugin.offle.toggleSymbolWithMission(event)">Portal with mission marker symbol:</td>
-                        <td><input type="text" value="${ offle.symbolWithMission }" size="1" onchange="window.plugin.offle.changeSymbolWithMission(event)"></td>
+                        <td><input type="checkbox" ${offle.settings.symbolWithMissionEnabled ? 'checked' : ''} onclick="window.plugin.offle.toggleSymbolWithMission(event)">Portal with mission marker symbol:</td>
+                        <td><input type="text" value="${ offle.settings.symbolWithMission }" size="1" onchange="window.plugin.offle.changeSymbolWithMission(event)"></td>
                     </tr>
-                    <tr><td>Max visible portals:</td><td><input type="number" value="${ offle.maxVisibleCount }" size="5" onchange="window.plugin.offle.changeMaxVisibleCount(event)"></td></tr>
+
+                    <tr>
+                        <td>Show visited</td>
+                        <td><input type="checkbox" ${offle.settings.showFlags & 1 ? 'checked' : ''} onclick="window.plugin.offle.toggleShowFlags(event, 1)"></td>
+                    </tr>
+                    <tr>
+                        <td>Show captured</td>
+                        <td><input type="checkbox" ${offle.settings.showFlags & 2 ? 'checked' : ''} onclick="window.plugin.offle.toggleShowFlags(event, 2)"></td>
+                    </tr>
+                    <tr>
+                        <td>Show scout controlled</td>
+                        <td><input type="checkbox" ${offle.settings.showFlags & 4 ? 'checked' : ''} onclick="window.plugin.offle.toggleShowFlags(event, 4)"></td>
+                    </tr>
+                    <tr>
+                        <td>Invert (show missing)</td>
+                        <td><input type="checkbox" ${offle.settings.showFlagsInvert ? 'checked' : ''} onclick="window.plugin.offle.toggleShowFlagsInvert(event)"></td>
+                    </tr>
+
+                    <tr><td>Max visible portals:</td><td><input type="number" value="${ offle.settings.maxVisibleCount }" size="5" onchange="window.plugin.offle.changeMaxVisibleCount(event)"></td></tr>
                 </table>
                 <div style="border-bottom: 60px;">
                     <div>
