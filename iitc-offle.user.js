@@ -43,9 +43,14 @@ function wrapper(plugin_info) {
         var guid = data.portal.options.guid,
             name = data.portal.options.data.title;
         if (name) { //update data only with portals with full details
-            offle.portalDb[guid] = data.portal.getLatLng();
-            offle.portalDb[guid].name = data.portal.options.data.title;
-            offle.portalDb[guid].mission = data.portal.options.data.mission;
+
+            let portal = offle.portalDb[guid];
+            if (portal == null) offle.portalDb[guid] = portal = {}; // create if not exists already
+            let ll = data.portal.getLatLng();
+            portal.lat = ll.lat;
+            portal.lng = ll.lng;
+            portal.name = data.portal.options.data.title;
+            portal.mission = data.portal.options.data.mission;
             offle.renderVisiblePortals();
             localforage.setItem('portalDb', offle.portalDb);
         }
