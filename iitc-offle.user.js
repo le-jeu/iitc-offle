@@ -27,21 +27,45 @@ function wrapper(plugin_info) {
     offle.symbolWithMissionEnabled = false;
     offle.maxVisibleCount = 2000;
 
+    const isVisited = function(flags) {
+        return (flags & 1) == 1;
+    }
+
+    const isCaptured = function(flags) {
+        return (flags & 2) == 2;
+    }
+
+    const isScouted = function(flags) {
+        return (flags & 4) == 4;
+    }
+
+    const getFlags = function(data) {
+        let flags = null;
+		if (data.portal.options.ent.length === 3 && data.portal.options.ent[2].length >= 19 && data.portal.options.ent[2][18] > 0) {
+            flags = data.portal.options.ent[2][18];
+            console.debug("portal flags: %s %s", data.portal.options.guid, flags);
+		}
+        return flags;
+    }
 
     // Use portal add event to save it to db
     offle.portalAdded = function (data) {
+
         offle.addPortal(
             data.portal.options.guid,
             data.portal.options.data.title,
             data.portal.getLatLng(),
-            data.portal.options.data.mission
+            data.portal.options.data.mission,
+            getFlags(data)
         );
     };
 
     // Always update portal data if displayed in sidebar (to handle e.g. moved portals)
     offle.portalDetailsUpdated = function (data) {
+
         var guid = data.portal.options.guid,
             name = data.portal.options.data.title;
+
         if (name) { //update data only with portals with full details
 
             let portal = offle.portalDb[guid];
@@ -51,12 +75,14 @@ function wrapper(plugin_info) {
             portal.lng = ll.lng;
             portal.name = data.portal.options.data.title;
             portal.mission = data.portal.options.data.mission;
+            let flags = getFlags(data);
+            if (flags != null) portal.flags = flags;
             offle.renderVisiblePortals();
             localforage.setItem('portalDb', offle.portalDb);
         }
     };
 
-    offle.addPortal = function (guid, name, latLng, mission) {
+    offle.addPortal = function (guid, name, latLng, mission, flags) {
 
         var notInDb = guid && !(guid in offle.portalDb);        
         var old = offle.portalDb[guid];        
@@ -66,7 +92,8 @@ function wrapper(plugin_info) {
         var newName = name && old && old.name != name;
         var newPos = latLng && old && (old.lat != latLng.lat || old.lng != latLng.lng);
         var newMission = mission != null && old && old.mission != mission;
-        var newData = newName || newPos || newMission;
+        var newFlags = flags != null && (!old || old.flags != flags);
+        var newData = newName || newPos || newMission || newFlags;
 
         //console.log("AddPortal ", guid," ",name, "::", notInDb, " ", newName, " ", newPos, " ", newMission);
 
@@ -99,6 +126,7 @@ function wrapper(plugin_info) {
             if (notInDb || newPos) { portal.lat = latLng.lat; portal.lng = latLng.lng; }
             if (notInDb || mission) portal.mission = mission;
             if (notInDb || !portal.createTs)  portal.createTs = now;
+            if (notInDb || newFlags) portal.flags = flags;
             portal.modifyTs = now;
             if (notInDb) offle.portalDb[guid] = portal;
             offle.dirtyDb = true; //mark Db dirty to by stored on mapDataRefreshEnd
