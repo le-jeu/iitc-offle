@@ -165,27 +165,52 @@ function wrapper(plugin_info) {
             }
         }
 
-        offle.creatingPortalEntity = true;
-        window.mapDataRequest.render.createPortalEntity(
-            [
-                guid,
-                0,
+        portalMarker = window.portals[guid];
+        if (!portalMarker) {
+            offle.creatingPortalEntity = true;
+            window.mapDataRequest.render.createPortalEntity(
                 [
-                    'p',
-                    'N',
-                    Math.trunc(offleData.lat * 1e6),
-                    Math.trunc(offleData.lng * 1e6),
-                    1, 0, 0, null,
-                    offleData.name || '',
-                    [],
-                    offleData.mission, false,
-                    null, 0, null, null, null, null,
-                    offleData.flags || 0,
+                    guid,
+                    -1,
+                    [
+                        'p',
+                        'N',
+                        Math.trunc(offleData.lat * 1e6),
+                        Math.trunc(offleData.lng * 1e6),
+                        1, 0, 0, null,
+                        offleData.name || '',
+                        [],
+                        offleData.mission, false,
+                        null, 0, null, null, null, null,
+                        offleData.flags || 0,
+                    ],
                 ],
-            ],
-            'extended'
-        );
-        offle.creatingPortalEntity = false;
+                'extended'
+            );
+            offle.creatingPortalEntity = false;
+        } else {
+            // update current entity if needed
+            if (offleData.mission) portalMarker.options.data.mission = true;
+            if (offleData.flags) {
+                var history = portalMarker.options.data.history || {
+                    _raw: 0,
+                    visited: false,
+                    captured: false,
+                    scoutControlled: false,
+                };
+                portalMarker.options.data.history = {
+                    _raw: history._raw | offleData.flags,
+                    visited: history.visited || isVisited(offleData.flags),
+                    captured: history.captured || isCaptured(offleData.flags),
+                    scoutControlled: history.scoutControlled || isScouted(offleData.flags),
+                };
+            }
+            if (!portalMarker.options.data.title) portalMarker.options.data.title = offleData.name;
+            // refresh highlighter
+            window.setMarkerStyle(portalMarker, guid === window.selectedPortal);
+            // mark as seen
+            window.mapDataRequest.render.seenPortalsGuid[guid] = true;
+        }
     };
 
     offle.saveData = function (force) {
