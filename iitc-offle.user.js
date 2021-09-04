@@ -22,9 +22,6 @@ function wrapper(plugin_info) {
     var offle = window.plugin.offle;
     offle.portalDb = {};
     offle.lastAddedDb = {};
-    offle.symbol = '&bull;';
-    offle.symbolWithMission = '◉';
-    offle.symbolWithMissionEnabled = false;
     offle.maxVisibleCount = 2000;
 
     const isVisited = function(flags) {
@@ -50,14 +47,17 @@ function wrapper(plugin_info) {
 
     // Use portal add event to save it to db
     offle.portalAdded = function (data) {
-
-        offle.addPortal(
-            data.portal.options.guid,
-            data.portal.options.data.title,
-            data.portal.getLatLng(),
-            data.portal.options.data.mission,
-            getFlags(data)
-        );
+        if (offle.creatingPortalEntity) {
+            offle.currentPortalMarkers[data.portal.options.guid] = data.portal;
+        } else {
+            offle.addPortal(
+                data.portal.options.guid,
+                data.portal.options.data.title,
+                data.portal.getLatLng(),
+                data.portal.options.data.mission,
+                getFlags(data)
+            );
+        }
     };
 
     // Always update portal data if displayed in sidebar (to handle e.g. moved portals)
@@ -77,15 +77,15 @@ function wrapper(plugin_info) {
             portal.mission = data.portal.options.data.mission;
             let flags = getFlags(data);
             if (flags != null) portal.flags = flags;
-            offle.renderVisiblePortals();
+            //offle.renderVisiblePortals();
             localforage.setItem('portalDb', offle.portalDb);
         }
     };
 
     offle.addPortal = function (guid, name, latLng, mission, flags) {
 
-        var notInDb = guid && !(guid in offle.portalDb);        
-        var old = offle.portalDb[guid];        
+        var notInDb = guid && !(guid in offle.portalDb);
+        var old = offle.portalDb[guid];
 
         //console.log("AddPortal: %o %o %o %o %o", guid, name, latLng, mission, old, notInDb);
 
@@ -120,7 +120,7 @@ function wrapper(plugin_info) {
 
                 offle.lastAddedDb[guid] = la;
             }
-            
+
             let portal = offle.portalDb[guid] || {};
             if (notInDb || newName) portal.name = name || guid;
             if (notInDb || newPos) { portal.lat = latLng.lat; portal.lng = latLng.lng; }
@@ -130,10 +130,10 @@ function wrapper(plugin_info) {
             portal.modifyTs = now;
             if (notInDb) offle.portalDb[guid] = portal;
             offle.dirtyDb = true; //mark Db dirty to by stored on mapDataRefreshEnd
-            offle.renderPortal(guid);
+            //offle.renderPortal(guid);
             offle.updatePortalCounter();
             offle.updateLACounter();
-            offle.updateLAList();            
+            offle.updateLAList();
         }
 
         // set last seen timestamp so we can track potentially removed portals later
@@ -145,14 +145,12 @@ function wrapper(plugin_info) {
 
     offle.currentPortalMarkers = {};
 
-    offle.renderPortal = function (guid) {
+    offle.renderPortal = function(guid) {
+        if (!offle.renderReady) return;
+        var portalMarker, uniqueInfo;
 
-        var oldMarker = offle.currentPortalMarkers[guid];
-        if (oldMarker) // avoid moved portals staying in both locations on the map until refresh
-            try { oldMarker.remove(); } catch (e) {};
-
-        var portalMarker, uniqueInfo,
-            iconCSSClass = 'offle-marker';
+        var offleData = offle.portalDb[guid];
+        offleData.flags = offleData.flags || 0;
 
         if (window.plugin.uniques) {
             uniqueInfo = window.plugin.uniques.uniques[guid];
@@ -160,53 +158,34 @@ function wrapper(plugin_info) {
 
         if (uniqueInfo) {
             if (uniqueInfo.visited) {
-                iconCSSClass += ' offle-marker-visited-color';
+                offleData.flags |= 1;
             }
             if (uniqueInfo.captured) {
-                iconCSSClass += ' offle-marker-captured-color';
+                offleData.flags |= 2;
             }
         }
 
-        portalMarker = L.marker(offle.portalDb[guid], {
-            icon: L.divIcon({
-                className: iconCSSClass,
-                iconAnchor: [15, 23],
-                iconSize: [30, 30],
-                html: offle.portalDb[guid].mission && offle.symbolWithMissionEnabled ? offle.symbolWithMission : offle.symbol
-            }),
-            name: offle.portalDb[guid].name,
-            title: offle.portalDb[guid].name || ''
-        });
-
-        portalMarker.on('click', function () {
-            window.renderPortalDetails(guid);
-        });
-
-        portalMarker.addTo(offle.portalLayerGroup);
-        offle.currentPortalMarkers[guid] = portalMarker;
-
-        if (window.plugin.keys) {
-            var keyCount = window.plugin.keys.keys[guid];
-            if (keyCount > 0) {
-                var keyMarker = L.marker(offle.portalDb[guid], {
-                    icon: L.divIcon({
-                        className: 'offle-key',
-                        iconAnchor: [6, 7],
-                        iconSize: [12, 10],
-                        html: keyCount
-                    }),
-                    guid: guid
-                });
-                keyMarker.addTo(offle.keyLayerGroup);
-            }
-        }
-
-    };
-
-    offle.clearLayer = function () {
-        offle.portalLayerGroup.clearLayers();
-        offle.keyLayerGroup.clearLayers();
-        offle.currentPortalMarkers = {};
+        offle.creatingPortalEntity = true;
+        window.mapDataRequest.render.createPortalEntity(
+            [
+                guid,
+                0,
+                [
+                    'p',
+                    'N',
+                    Math.trunc(offleData.lat * 1e6),
+                    Math.trunc(offleData.lng * 1e6),
+                    1, 0, 0, null,
+                    offleData.name || '',
+                    [],
+                    offleData.mission, false,
+                    null, 0, null, null, null, null,
+                    offleData.flags || 0,
+                ],
+            ],
+            'extended'
+        );
+        offle.creatingPortalEntity = false;
     };
 
     offle.saveData = function (force) {
@@ -219,18 +198,12 @@ function wrapper(plugin_info) {
 
     offle.mapDataRefreshStart = function () {
         //console.log("offle: starting map refresh..");
+        offle.renderReady = true;
     };
 
     offle.mapDataRefreshEnd = function () {
         //console.log("offle: map refresh ended!");
         offle.saveData();
-    };
-
-    offle.setupLayer = function () {
-        offle.portalLayerGroup = new L.LayerGroup();
-        window.addLayerGroup('offlePortals', offle.portalLayerGroup, false);
-        offle.keyLayerGroup = new L.LayerGroup();
-        window.addLayerGroup('offleKeys', offle.keyLayerGroup, false);
     };
 
     offle.setupCSS = function () {
@@ -250,19 +223,6 @@ function wrapper(plugin_info) {
             #offle-info td {
                 padding: 0.35em 0;
                 vertical-align: center;
-            }
-            .offle-marker {
-                font-size: 30px;
-                color: #FF6200;
-                font-family: monospace;
-                text-align: center;
-                /* pointer-events: none; */
-            }
-            .offle-marker-visited-color {
-                color: #FFCE00;
-            }
-            .offle-marker-captured-color {
-                color: #00BB00;
             }
             .offle-portal-counter {
                 display: none;
@@ -330,33 +290,13 @@ function wrapper(plugin_info) {
         if (confirm('Are you sure to permanently delete ALL the stored portals?')) {
             localforage.removeItem('portalDb');
             offle.portalDb = {};
-            offle.clearLayer();
             offle.updatePortalCounter();
         }
 
     };
 
-    offle.changeSymbol = function (event) {
-        offle.symbol = event.target.value;
-        offle.clearLayer();
-        offle.renderVisiblePortals();
-    };
-
-    offle.changeSymbolWithMission = function (event) {
-        offle.symbolWithMission = event.target.value;
-        offle.clearLayer();
-        offle.renderVisiblePortals();
-    };
-
-    offle.toggleSymbolWithMission = function (event) {
-        offle.symbolWithMissionEnabled = event.target.checked;
-        offle.clearLayer();
-        offle.renderVisiblePortals();
-    }
-
     offle.changeMaxVisibleCount = function (event) {
         offle.maxVisibleCount = event.target.value;
-        offle.clearLayer();
         offle.renderVisiblePortals();
     };
 
@@ -382,11 +322,6 @@ function wrapper(plugin_info) {
                     <tr><td>Offline portals count:</td><td><span id="offle-portal-counter">${ Object.keys(offle.portalDb).length }</span></td></tr>
                     <tr><td>Visible portals:</td><td><span id="visible-portals-counter">x</span></td></tr>
                     <tr><td>Unique portals visited:</td><td>${ window.plugin.uniques ? Object.keys(window.plugin.uniques.uniques).length : 'uniques plugin missing' }</td></tr>
-                    <tr><td>Portal marker symbol:</td><td><input type="text" value="${offle.symbol}" size="1" onchange="window.plugin.offle.changeSymbol(event)"></td></tr>
-                    <tr>
-                        <td><input type="checkbox" ${offle.symbolWithMissionEnabled ? 'checked' : ''} onclick="window.plugin.offle.toggleSymbolWithMission(event)">Portal with mission marker symbol:</td>
-                        <td><input type="text" value="${ offle.symbolWithMission }" size="1" onchange="window.plugin.offle.changeSymbolWithMission(event)"></td>
-                    </tr>
                     <tr><td>Max visible portals:</td><td><input type="number" value="${ offle.maxVisibleCount }" size="5" onchange="window.plugin.offle.changeMaxVisibleCount(event)"></td></tr>
                 </table>
                 <div style="border-bottom: 60px;">
@@ -518,7 +453,6 @@ function wrapper(plugin_info) {
                 offle.saveData(true);
                 window.alert('Portals processed: ' + len + ', portals added:' + (new_len - old_len) + '.');
 
-                offle.clearLayer(); // in case something was moved (avoid duplicates)
                 offle.renderVisiblePortals();
             }
         }
@@ -616,7 +550,6 @@ function wrapper(plugin_info) {
     var setup = function () {
         var API = 'https://unpkg.com/localforage@1.7.3/dist/localforage.js';
         $.getScript(API).done(function () {
-            offle.setupLayer();
             offle.setupCSS();
             offle.setupHtml();
 
@@ -644,12 +577,10 @@ function wrapper(plugin_info) {
                 }
             );
 
-            map.on('movestart', function () {
-                offle.clearLayer();
-            });
             map.on('moveend', offle.onMapMove);
             window.addHook('portalAdded', offle.portalAdded);
             window.addHook('mapDataRefreshStart', offle.mapDataRefreshStart);
+            window.addHook('mapDataEntityInject', offle.renderVisiblePortals);
             window.addHook('mapDataRefreshEnd', offle.mapDataRefreshEnd);
             window.addHook('portalDetailsUpdated', offle.portalDetailsUpdated);
         });
@@ -658,6 +589,7 @@ function wrapper(plugin_info) {
         // that also searches the offle database
         offle.searchInit();
     };
+
     // PLUGIN END //////////////////////////////////////////////////////////
 
     setup.info = plugin_info; //add the script info data to the function as a property
